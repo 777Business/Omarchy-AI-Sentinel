@@ -14,6 +14,7 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   property var parentWidget: null
+  readonly property var barIdentity: hostWidget || root
 
   property var aiData: {
     "status": "idle",
@@ -26,14 +27,18 @@ Panel {
     "gpu_compute_pct": 0,
     "is_warning": false,
     "presets": [
+      { "id": "llama-server", "name": "Llama Server", "cmd": "systemctl --user start llama-server.service" },
       { "id": "ollama", "name": "Ollama", "cmd": "ollama serve" },
-      { "id": "strata", "name": "Strata", "cmd": "strata launch" },
-      { "id": "llama-router", "name": "Router", "cmd": "llama-router" }
+      { "id": "strata", "name": "Strata", "cmd": "strata launch" }
     ],
     "servers": []
   }
 
-  readonly property string ctlPath: Qt.resolvedUrl("scripts/ai-ctl.py").toString().replace("file://", "")
+  readonly property string ctlPath: Qt.resolvedUrl("scripts/ai-ctl.py").toString().replace(/^(qs|file):\/\//, "")
+
+  function getRounding(r) {
+    return Style.cornerRadius > 0 ? Math.min(Style.cornerRadius, Style.space(r)) : Style.space(r)
+  }
 
   function open() {
     root.controller.show()
@@ -42,6 +47,14 @@ Panel {
 
   function close() {
     root.controller.hide()
+  }
+
+  function toggle() {
+    if (root.opened) {
+      root.close()
+    } else {
+      root.open()
+    }
   }
 
   function switchPanel(direction) {
@@ -57,27 +70,27 @@ Panel {
   }
 
   function stopServer(pid) {
-    Quickshell.execDetached([root.ctlPath, "stop", String(pid)])
+    Quickshell.execDetached(["python3", root.ctlPath, "stop", String(pid)])
     refreshTimer.restart()
   }
 
   function stopAll() {
-    Quickshell.execDetached([root.ctlPath, "stop-all"])
+    Quickshell.execDetached(["python3", root.ctlPath, "stop-all"])
     refreshTimer.restart()
   }
 
   function startEngine(engine) {
-    Quickshell.execDetached([root.ctlPath, "start", engine])
+    Quickshell.execDetached(["python3", root.ctlPath, "start", engine])
     refreshTimer.restart()
   }
 
   function addPreset(id, name, pattern, cmd) {
-    Quickshell.execDetached([root.ctlPath, "add-preset", id, name, pattern, cmd])
+    Quickshell.execDetached(["python3", root.ctlPath, "add-preset", id, name, pattern, cmd])
     refreshTimer.restart()
   }
 
   function removePreset(id) {
-    Quickshell.execDetached([root.ctlPath, "remove-preset", id])
+    Quickshell.execDetached(["python3", root.ctlPath, "remove-preset", id])
     refreshTimer.restart()
   }
 
@@ -91,7 +104,7 @@ Panel {
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
-    owner: root.hostWidget || root
+    owner: root.barIdentity
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
@@ -148,7 +161,7 @@ Panel {
         Rectangle {
           width: parent.width
           implicitHeight: heroCol.implicitHeight + Style.space(20)
-          radius: Style.rounding(10)
+          radius: root.getRounding(10)
           color: Util.alpha(Color.foreground, 0.06)
           border.width: 1
           border.color: root.aiData.is_warning ? "#ef4444" : Util.alpha(Color.foreground, 0.16)
@@ -185,7 +198,7 @@ Panel {
             Rectangle {
               width: parent.width
               height: Style.space(8)
-              radius: Style.rounding(4)
+              radius: root.getRounding(4)
               color: Util.alpha(Color.foreground, 0.12)
 
               Rectangle {
@@ -211,7 +224,7 @@ Panel {
             Rectangle {
               width: parent.width
               height: Style.space(34)
-              radius: Style.rounding(6)
+              radius: root.getRounding(6)
               color: freeArea.containsMouse ? "#dc2626" : Util.alpha("#ef4444", 0.16)
               border.width: 1
               border.color: "#ef4444"
@@ -260,7 +273,7 @@ Panel {
           visible: root.aiData.server_count === 0
           width: parent.width
           height: Style.space(64)
-          radius: Style.rounding(8)
+          radius: root.getRounding(8)
           color: Util.alpha(Color.foreground, 0.04)
           border.width: 1
           border.color: Util.alpha(Color.foreground, 0.10)
@@ -292,7 +305,7 @@ Panel {
           delegate: Rectangle {
             width: mainColumn.width
             implicitHeight: sCol.implicitHeight + Style.space(20)
-            radius: Style.rounding(8)
+            radius: root.getRounding(8)
             color: Util.alpha(Color.accent, 0.10)
             border.width: 1
             border.color: Util.alpha(Color.accent, 0.35)
@@ -343,7 +356,7 @@ Panel {
                     visible: !modelData.is_saved
                     width: Style.space(68)
                     height: Style.space(24)
-                    radius: Style.rounding(4)
+                    radius: root.getRounding(4)
                     color: pinArea.containsMouse ? Util.alpha(Color.accent, 0.35) : Util.alpha(Color.accent, 0.20)
                     border.width: 1
                     border.color: Color.accent
@@ -371,7 +384,7 @@ Panel {
                     id: stopBtn
                     width: Style.space(60)
                     height: Style.space(24)
-                    radius: Style.rounding(4)
+                    radius: root.getRounding(4)
                     color: stopArea.containsMouse ? "#dc2626" : "#ef4444"
 
                     Text {
@@ -449,7 +462,7 @@ Panel {
             delegate: Rectangle {
               width: (mainColumn.width - (Style.space(6) * (Math.min(3, root.aiData.presets.length) - 1))) / Math.min(3, root.aiData.presets.length)
               height: Style.space(34)
-              radius: Style.rounding(6)
+              radius: root.getRounding(6)
               color: pArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
               border.width: 1
               border.color: Util.alpha(Color.foreground, 0.20)

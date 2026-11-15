@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 import time
 import signal
 import subprocess
@@ -55,10 +56,9 @@ def get_systemd_unit(pid):
     try:
         with open(f"/proc/{pid}/cgroup", "r") as f:
             content = f.read()
-            if "systemd" in content and ".service" in content:
-                for part in content.split("/"):
-                    if part.endswith(".service"):
-                        return part.strip()
+            units = [u for u in re.findall(r'([^/\s]+\.service)', content) if not u.startswith("user@")]
+            if units:
+                return units[-1]
     except Exception:
         pass
     return None
@@ -68,10 +68,16 @@ def stop_pid(pid):
     if unit:
         print(f"[AI Sentinel] Stopping systemd unit: {unit} for PID {pid}...")
         subprocess.run(["systemctl", "--user", "stop", unit], stderr=subprocess.DEVNULL)
-        time.sleep(1)
+        time.sleep(0.5)
 
     try:
-        os.kill(pid, signal.SIGTERM)
+        # Also kill process group if it spawned child engines (like llama-router -> llama-server)
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGTERM)
+        except Exception:
+            os.kill(pid, signal.SIGTERM)
+
         for _ in range(15):
             time.sleep(0.2)
             try:
@@ -79,7 +85,13 @@ def stop_pid(pid):
             except OSError:
                 print(f"[AI Sentinel] Successfully terminated PID {pid}")
                 return True
-        os.kill(pid, signal.SIGKILL)
+
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except Exception:
+            os.kill(pid, signal.SIGKILL)
+
         print(f"[AI Sentinel] Force killed PID {pid}")
         return True
     except ProcessLookupError:
@@ -97,6 +109,7 @@ def stop_all():
     process_names = [
         "llama-server",
         "llama-router.py",
+        "llama.cpp",
         "ollama",
         "strata",
         "strata-engine",
@@ -106,7 +119,7 @@ def stop_all():
     for p in process_names:
         subprocess.run(["pkill", "-15", "-f", p], stderr=subprocess.DEVNULL)
 
-    time.sleep(1)
+    time.sleep(0.8)
 
     for p in process_names:
         subprocess.run(["pkill", "-9", "-f", p], stderr=subprocess.DEVNULL)
@@ -126,11 +139,12 @@ def start_engine(engine_name):
             subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             return True
 
-    if engine_name == "ollama":
-        cmd = ["ollama", "serve"]
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        return True
-    elif engine_name == "llama-router":
+    if engine_name in ("llama-server", "llama-router", "llama.cpp", "llama"):
+        # First check if systemd unit exists
+        res = subprocess.run(["systemctl", "--user", "start", "llama-server.service"], stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            print("[AI Sentinel] Started llama-server.service via systemd")
+            return True
         router_script = os.path.join(home, ".local/bin/llama-router.py")
         if os.path.exists(router_script):
             subprocess.Popen(["python3", router_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -138,6 +152,10 @@ def start_engine(engine_name):
         else:
             print(f"[AI Sentinel] Error: {router_script} not found")
             return False
+    elif engine_name == "ollama":
+        cmd = ["ollama", "serve"]
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
     elif engine_name == "strata":
         subprocess.Popen(["bash", "-c", "strata launch"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return True

@@ -21,8 +21,8 @@ BarWidget {
     "servers": []
   }
 
-  readonly property string scriptPath: Qt.resolvedUrl("scripts/ai-sampler.py").toString().replace("file://", "")
-  readonly property string ctlPath: Qt.resolvedUrl("scripts/ai-ctl.py").toString().replace("file://", "")
+  readonly property string scriptPath: Qt.resolvedUrl("scripts/ai-sampler.py").toString().replace(/^(qs|file):\/\//, "")
+  readonly property string ctlPath: Qt.resolvedUrl("scripts/ai-ctl.py").toString().replace(/^(qs|file):\/\//, "")
 
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
@@ -40,13 +40,25 @@ BarWidget {
 
   function toggle() {
     if (panelLoader.item) {
-      if (panelLoader.item.opened) {
+      if (typeof panelLoader.item.toggle === "function") {
+        panelLoader.item.toggle()
+      } else if (panelLoader.item.opened) {
         panelLoader.item.close()
       } else {
         panelLoader.item.open()
-        panelLoader.item.refresh()
       }
     }
+  }
+
+  ShellIpc {
+    target: "omarchy-ai-sentinel"
+
+    function refresh(): void { root.refresh() }
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
   }
 
   function closeForPopoutSwitch() {
@@ -59,6 +71,7 @@ BarWidget {
     panelLoader.item.anchorItem = button
     panelLoader.item.hostWidget = root
     panelLoader.item.parentWidget = root
+    panelLoader.item.aiData = root.aiData
   }
 
   function refresh() {
@@ -68,6 +81,10 @@ BarWidget {
   }
 
   onBarChanged: injectPanel()
+
+  function getRounding(r) {
+    return Style.cornerRadius > 0 ? Math.min(Style.cornerRadius, Style.space(r)) : Style.space(r)
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -85,7 +102,7 @@ BarWidget {
 
   Process {
     id: samplerProcess
-    command: [root.scriptPath]
+    command: ["python3", root.scriptPath]
     stdout: StdioCollector {
       id: samplerOut
       waitForEnd: true
@@ -96,7 +113,20 @@ BarWidget {
           if (panelLoader.item) {
             panelLoader.item.aiData = res
           }
-        } catch (e) {}
+        } catch (e) {
+          if (samplerOut.text && samplerOut.text.trim().length > 0) {
+            console.warn("[AI Sentinel] sampler JSON parse error:", e, "raw text:", samplerOut.text)
+          }
+        }
+      }
+    }
+    stderr: StdioCollector {
+      id: samplerErr
+      waitForEnd: true
+      onStreamFinished: {
+        if (samplerErr.text && samplerErr.text.trim().length > 0) {
+          console.warn("[AI Sentinel] sampler stderr:", samplerErr.text.trim())
+        }
       }
     }
   }
@@ -126,7 +156,7 @@ BarWidget {
       visible: root.aiData.server_count > 0
       width: Style.space(8)
       height: Style.space(8)
-      radius: Style.rounding(4)
+      radius: root.getRounding(4)
       color: root.aiData.is_warning ? Color.red : Color.accent
       anchors.top: parent.top
       anchors.right: parent.right

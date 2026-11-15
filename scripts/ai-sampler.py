@@ -4,6 +4,8 @@ import sys
 import re
 import json
 import subprocess
+import urllib.request
+import urllib.error
 
 CONFIG_DIR = os.path.expanduser("~/.config/omarchy-ai-sentinel")
 CUSTOM_PRESETS_FILE = os.path.join(CONFIG_DIR, "custom_presets.json")
@@ -71,16 +73,29 @@ def get_listening_ports():
         ).decode()
         for line in out.splitlines():
             m_port = re.search(r':(\d+)\s+', line)
-            m_pid = re.search(r'pid=(\d+)', line)
-            if m_port and m_pid:
-                port = int(m_port.group(1))
+            if not m_port:
+                continue
+            port = int(m_port.group(1))
+            for m_pid in re.finditer(r'pid=(\d+)', line):
                 pid = int(m_pid.group(1))
                 ports[pid] = port
     except Exception:
         pass
     return ports
 
-def extract_model_name(args_str):
+def extract_model_name(args_str, comm="", port=None):
+    if "llama-router" in args_str:
+        target_port = port if (port and port != "-") else 11435
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{target_port}/health")
+            with urllib.request.urlopen(req, timeout=0.3) as resp:
+                data = json.loads(resp.read().decode())
+                if data.get("backend_active") and data.get("current_model"):
+                    return f"{data.get('current_model')} (Loaded)"
+                return "Multi-Model (On-Demand)"
+        except Exception:
+            return "Multi-Model (Dynamic)"
+
     m = re.search(r'(?:-m|--model)\s+([^\s]+)', args_str)
     if m:
         path = m.group(1)
@@ -101,10 +116,9 @@ def is_systemd_service(pid):
     try:
         with open(f"/proc/{pid}/cgroup", "r") as f:
             content = f.read()
-            if "systemd" in content and ".service" in content:
-                m = re.search(r'/([^/]+\.service)', content)
-                if m:
-                    return m.group(1)
+            units = [u for u in re.findall(r'([^/\s]+\.service)', content) if not u.startswith("user@")]
+            if units:
+                return units[-1]
     except Exception:
         pass
     return None
@@ -116,6 +130,8 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
     patterns = [
         ("llama-server", "Llama Server", "llama-server"),
         ("llama-router", "Llama Router", "llama-server"),
+        ("llama.cpp", "Llama.cpp", "llama-server"),
+        ("llama-cli", "Llama CLI", "llama-server"),
         ("ollama", "Ollama", "ollama"),
         ("strata", "Strata Engine", "strata"),
         ("vllm", "vLLM Server", "vllm"),
@@ -142,8 +158,13 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
 
     seen_pids = set()
 
-    # Desktop binaries to ignore even if they use GPU
-    ignore_comm = {"hyprland", "xwayland", "quickshell", "nautilus", "chrome", "firefox", "electron", "filmcraft", "antigravity"}
+    # Known non-AI applications to ignore even if they use GPU memory/compute
+    ignore_comm = {
+        "hyprland", "xwayland", "quickshell", "nautilus", "chrome", "firefox",
+        "electron", "filmcraft", "filmcraft-cli", "antigravity", "mpv", "vlc",
+        "obs", "steam", "telegram", "discord", "spotify", "alacritty", "kitty",
+        "ghostty", "foot", "chatgpt"
+    }
 
     for line in ps_out.splitlines():
         line = line.strip()
@@ -162,7 +183,7 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
         except ValueError:
             continue
 
-        if "ai-sampler.py" in args or "ai-ctl.py" in args or "grep" in comm:
+        if "ai-sampler.py" in args or "ai-ctl.py" in args or "grep" in comm or "--type=" in args:
             continue
 
         matched_engine = None
@@ -194,10 +215,8 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
                     port = int(m_port.group(1))
 
             vram_mib = gpu_info["apps"].get(pid, 0)
-            if vram_mib == 0 and "vram_used_mib" in gpu_info and len(seen_pids) == 1:
-                vram_mib = max(0, gpu_info["vram_used_mib"] - 600)
 
-            model = extract_model_name(args)
+            model = extract_model_name(args, comm, port)
             service_unit = is_systemd_service(pid)
 
             servers.append({
@@ -242,9 +261,9 @@ def main():
 
     # Presets list for UI
     presets = [
+        {"id": "llama-server", "name": "Llama Server", "cmd": "systemctl --user start llama-server.service"},
         {"id": "ollama", "name": "Ollama", "cmd": "ollama serve"},
-        {"id": "strata", "name": "Strata", "cmd": "strata launch"},
-        {"id": "llama-router", "name": "Router", "cmd": "llama-router"}
+        {"id": "strata", "name": "Strata", "cmd": "strata launch"}
     ]
     for cp in custom_presets:
         presets.append(cp)
