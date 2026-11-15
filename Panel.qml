@@ -93,8 +93,8 @@ Panel {
         id: mainColumn
         width: parent.width
         spacing: Style.space(12)
-        topPadding: Style.space(6)
-        bottomPadding: Style.space(6)
+        topPadding: Style.space(8)
+        bottomPadding: Style.space(8)
 
         // ----------------- Header -----------------
         Row {
@@ -134,15 +134,15 @@ Panel {
           width: parent.width
           implicitHeight: heroCol.implicitHeight + Style.space(20)
           radius: Style.rounding(10)
-          color: Util.alpha(Color.foreground, 0.05)
+          color: Util.alpha(Color.foreground, 0.06)
           border.width: 1
-          border.color: root.aiData.is_warning ? Color.red : Util.alpha(Color.foreground, 0.12)
+          border.color: root.aiData.is_warning ? "#ef4444" : Util.alpha(Color.foreground, 0.16)
 
           Column {
             id: heroCol
             anchors.fill: parent
-            anchors.margins: Style.space(10)
-            spacing: Style.space(8)
+            anchors.margins: Style.space(12)
+            spacing: Style.space(10)
 
             Row {
               width: parent.width
@@ -151,7 +151,7 @@ Panel {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                color: Color.muted
+                color: Util.alpha(Color.foreground, 0.70)
               }
               Item {
                 width: Math.max(0, parent.width - (parent.children[0].implicitWidth + parent.children[2].implicitWidth))
@@ -162,7 +162,7 @@ Panel {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                color: root.aiData.is_warning ? Color.red : Color.accent
+                color: root.aiData.is_warning ? "#f87171" : Color.accent
               }
             }
 
@@ -171,13 +171,13 @@ Panel {
               width: parent.width
               height: Style.space(8)
               radius: Style.rounding(4)
-              color: Util.alpha(Color.foreground, 0.10)
+              color: Util.alpha(Color.foreground, 0.12)
 
               Rectangle {
                 width: Math.min(parent.width, Math.max(4, parent.width * (root.aiData.gpu_used_pct / 100.0)))
                 height: parent.height
                 radius: parent.radius
-                color: root.aiData.is_warning ? Color.red : (root.aiData.server_count > 0 ? Color.accent : Color.muted)
+                color: root.aiData.is_warning ? "#ef4444" : (root.aiData.server_count > 0 ? Color.accent : Util.alpha(Color.foreground, 0.40))
                 Behavior on width { NumberAnimation { duration: Style.duration(200) } }
               }
             }
@@ -188,18 +188,18 @@ Panel {
                 text: "GPU Compute Activity: " + root.aiData.gpu_compute_pct + "%"
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
-                color: Color.muted
+                color: Util.alpha(Color.foreground, 0.70)
               }
             }
 
-            // Emergency Free All VRAM button (only active if servers or VRAM used > 1.2 GB)
+            // Emergency Free All VRAM button
             Rectangle {
               width: parent.width
-              height: Style.space(32)
+              height: Style.space(34)
               radius: Style.rounding(6)
-              color: freeArea.containsMouse ? Util.alpha(Color.red, 0.3) : Util.alpha(Color.red, 0.15)
+              color: freeArea.containsMouse ? "#dc2626" : Util.alpha("#ef4444", 0.16)
               border.width: 1
-              border.color: Color.red
+              border.color: "#ef4444"
 
               Row {
                 anchors.centerIn: parent
@@ -207,7 +207,7 @@ Panel {
                 Text {
                   text: "⏹"
                   font.pixelSize: Style.font.caption
-                  color: Color.red
+                  color: freeArea.containsMouse ? "#ffffff" : "#f87171"
                   anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -215,7 +215,7 @@ Panel {
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
                   font.bold: true
-                  color: Color.red
+                  color: freeArea.containsMouse ? "#ffffff" : "#f87171"
                   anchors.verticalCenter: parent.verticalCenter
                 }
               }
@@ -237,26 +237,27 @@ Panel {
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           font.bold: true
-          color: Color.muted
+          color: Util.alpha(Color.foreground, 0.65)
         }
 
         // Empty state
         Rectangle {
           visible: root.aiData.server_count === 0
           width: parent.width
-          height: Style.space(60)
+          height: Style.space(64)
           radius: Style.rounding(8)
-          color: Util.alpha(Color.foreground, 0.03)
+          color: Util.alpha(Color.foreground, 0.04)
           border.width: 1
-          border.color: Util.alpha(Color.foreground, 0.08)
+          border.color: Util.alpha(Color.foreground, 0.10)
 
           Column {
             anchors.centerIn: parent
-            spacing: Style.space(2)
+            spacing: Style.space(3)
             Text {
               text: "No AI servers running"
               font.family: Style.font.family
               font.pixelSize: Style.font.body
+              font.bold: true
               color: Color.foreground
               anchors.horizontalCenter: parent.horizontalCenter
             }
@@ -264,7 +265,7 @@ Panel {
               text: "VRAM is completely clear for games & apps"
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
-              color: Color.muted
+              color: Util.alpha(Color.foreground, 0.65)
               anchors.horizontalCenter: parent.horizontalCenter
             }
           }
@@ -275,47 +276,56 @@ Panel {
           model: root.aiData.servers
           delegate: Rectangle {
             width: mainColumn.width
-            implicitHeight: sCol.implicitHeight + Style.space(16)
+            implicitHeight: sCol.implicitHeight + Style.space(20)
             radius: Style.rounding(8)
-            color: Util.alpha(Color.accent, 0.08)
+            color: Util.alpha(Color.accent, 0.10)
             border.width: 1
-            border.color: Util.alpha(Color.accent, 0.3)
+            border.color: Util.alpha(Color.accent, 0.35)
 
             Column {
               id: sCol
               anchors.fill: parent
-              anchors.margins: Style.space(10)
-              spacing: Style.space(6)
+              anchors.margins: Style.space(12)
+              spacing: Style.space(8)
 
-              Row {
+              // Header Row with STOP button anchored safely inside
+              Item {
                 width: parent.width
-                spacing: Style.space(6)
+                height: Style.space(26)
 
-                Text {
-                  text: "🟢"
-                  font.pixelSize: Style.font.caption
+                Row {
+                  anchors.left: parent.left
+                  anchors.right: stopBtn.left
+                  anchors.rightMargin: Style.space(8)
                   anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(6)
+
+                  Text {
+                    text: "●"
+                    color: Color.accent
+                    font.pixelSize: Style.font.caption
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                  Text {
+                    text: modelData.name + " (PID " + modelData.pid + ")"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    color: Color.foreground
+                    elide: Text.ElideRight
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
                 }
-                Text {
-                  text: modelData.name + " (PID " + modelData.pid + ")"
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.body
-                  font.bold: true
-                  color: Color.foreground
-                  anchors.verticalCenter: parent.verticalCenter
-                }
-                Item {
-                  Layout.fillWidth: true
-                  width: Math.max(0, sCol.width - (parent.children[0].implicitWidth + parent.children[1].implicitWidth + stopBtn.implicitWidth + Style.space(30)))
-                  height: 1
-                }
+
                 // Stop Button
                 Rectangle {
                   id: stopBtn
-                  width: Style.space(70)
-                  height: Style.space(26)
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(60)
+                  height: Style.space(24)
                   radius: Style.rounding(4)
-                  color: stopArea.containsMouse ? Color.red : Util.alpha(Color.red, 0.8)
+                  color: stopArea.containsMouse ? "#dc2626" : "#ef4444"
 
                   Text {
                     anchors.centerIn: parent
@@ -323,7 +333,7 @@ Panel {
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: true
-                    color: "white"
+                    color: "#ffffff"
                   }
 
                   MouseArea {
@@ -348,7 +358,7 @@ Panel {
 
               // Details badge row
               Row {
-                spacing: Style.space(12)
+                spacing: Style.space(14)
                 Text {
                   text: "VRAM: " + modelData.vram_gb
                   font.family: Style.font.family
@@ -360,13 +370,13 @@ Panel {
                   text: "Port: " + modelData.port
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
-                  color: Color.muted
+                  color: Util.alpha(Color.foreground, 0.70)
                 }
                 Text {
                   text: "CPU: " + modelData.cpu_pct + "%"
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
-                  color: Color.muted
+                  color: Util.alpha(Color.foreground, 0.70)
                 }
               }
             }
@@ -379,7 +389,7 @@ Panel {
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           font.bold: true
-          color: Color.muted
+          color: Util.alpha(Color.foreground, 0.65)
         }
 
         Row {
@@ -388,19 +398,29 @@ Panel {
 
           Rectangle {
             width: (parent.width - Style.space(12)) / 3
-            height: Style.space(32)
+            height: Style.space(34)
             radius: Style.rounding(6)
-            color: oArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
+            color: oArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
             border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.20)
 
-            Text {
+            Row {
               anchors.centerIn: parent
-              text: "▶ Ollama"
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              color: Color.foreground
+              spacing: Style.space(4)
+              Text {
+                text: "▶"
+                font.pixelSize: Style.font.caption
+                color: Color.accent
+                anchors.verticalCenter: parent.verticalCenter
+              }
+              Text {
+                text: "Ollama"
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: Color.foreground
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
             MouseArea {
               id: oArea
@@ -413,19 +433,29 @@ Panel {
 
           Rectangle {
             width: (parent.width - Style.space(12)) / 3
-            height: Style.space(32)
+            height: Style.space(34)
             radius: Style.rounding(6)
-            color: sArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
+            color: sArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
             border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.20)
 
-            Text {
+            Row {
               anchors.centerIn: parent
-              text: "▶ Strata"
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              color: Color.foreground
+              spacing: Style.space(4)
+              Text {
+                text: "▶"
+                font.pixelSize: Style.font.caption
+                color: Color.accent
+                anchors.verticalCenter: parent.verticalCenter
+              }
+              Text {
+                text: "Strata"
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: Color.foreground
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
             MouseArea {
               id: sArea
@@ -438,19 +468,29 @@ Panel {
 
           Rectangle {
             width: (parent.width - Style.space(12)) / 3
-            height: Style.space(32)
+            height: Style.space(34)
             radius: Style.rounding(6)
-            color: rArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
+            color: rArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
             border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.20)
 
-            Text {
+            Row {
               anchors.centerIn: parent
-              text: "▶ Router"
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              color: Color.foreground
+              spacing: Style.space(4)
+              Text {
+                text: "▶"
+                font.pixelSize: Style.font.caption
+                color: Color.accent
+                anchors.verticalCenter: parent.verticalCenter
+              }
+              Text {
+                text: "Router"
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: Color.foreground
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
             MouseArea {
               id: rArea
