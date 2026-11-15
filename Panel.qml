@@ -134,9 +134,9 @@ Panel {
           width: parent.width
           implicitHeight: heroCol.implicitHeight + Style.space(20)
           radius: Style.rounding(10)
-          color: Color.alpha(Color.foreground, 0.05)
+          color: Util.alpha(Color.foreground, 0.05)
           border.width: 1
-          border.color: root.aiData.is_warning ? Color.red : Color.alpha(Color.foreground, 0.12)
+          border.color: root.aiData.is_warning ? Color.red : Util.alpha(Color.foreground, 0.12)
 
           Column {
             id: heroCol
@@ -171,7 +171,7 @@ Panel {
               width: parent.width
               height: Style.space(8)
               radius: Style.rounding(4)
-              color: Color.alpha(Color.foreground, 0.10)
+              color: Util.alpha(Color.foreground, 0.10)
 
               Rectangle {
                 width: Math.min(parent.width, Math.max(4, parent.width * (root.aiData.gpu_used_pct / 100.0)))
@@ -197,7 +197,7 @@ Panel {
               width: parent.width
               height: Style.space(32)
               radius: Style.rounding(6)
-              color: freeArea.containsMouse ? Color.alpha(Color.red, 0.3) : Color.alpha(Color.red, 0.15)
+              color: freeArea.containsMouse ? Util.alpha(Color.red, 0.3) : Util.alpha(Color.red, 0.15)
               border.width: 1
               border.color: Color.red
 
@@ -246,9 +246,9 @@ Panel {
           width: parent.width
           height: Style.space(60)
           radius: Style.rounding(8)
-          color: Color.alpha(Color.foreground, 0.03)
+          color: Util.alpha(Color.foreground, 0.03)
           border.width: 1
-          border.color: Color.alpha(Color.foreground, 0.08)
+          border.color: Util.alpha(Color.foreground, 0.08)
 
           Column {
             anchors.centerIn: parent
@@ -277,9 +277,9 @@ Panel {
             width: mainColumn.width
             implicitHeight: sCol.implicitHeight + Style.space(16)
             radius: Style.rounding(8)
-            color: Color.alpha(Color.accent, 0.08)
+            color: Util.alpha(Color.accent, 0.08)
             border.width: 1
-            border.color: Color.alpha(Color.accent, 0.3)
+            border.color: Util.alpha(Color.accent, 0.3)
 
             Column {
               id: sCol
@@ -315,7 +315,7 @@ Panel {
                   width: Style.space(70)
                   height: Style.space(26)
                   radius: Style.rounding(4)
-                  color: stopArea.containsMouse ? Color.red : Color.alpha(Color.red, 0.8)
+                  color: stopArea.containsMouse ? Color.red : Util.alpha(Color.red, 0.8)
 
                   Text {
                     anchors.centerIn: parent
@@ -390,9 +390,9 @@ Panel {
             width: (parent.width - Style.space(12)) / 3
             height: Style.space(32)
             radius: Style.rounding(6)
-            color: oArea.containsMouse ? Color.alpha(Color.foreground, 0.12) : Color.alpha(Color.foreground, 0.06)
+            color: oArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
             border.width: 1
-            border.color: Color.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.15)
 
             Text {
               anchors.centerIn: parent
@@ -415,9 +415,9 @@ Panel {
             width: (parent.width - Style.space(12)) / 3
             height: Style.space(32)
             radius: Style.rounding(6)
-            color: sArea.containsMouse ? Color.alpha(Color.foreground, 0.12) : Color.alpha(Color.foreground, 0.06)
+            color: sArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
             border.width: 1
-            border.color: Color.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.15)
 
             Text {
               anchors.centerIn: parent
@@ -440,9 +440,9 @@ Panel {
             width: (parent.width - Style.space(12)) / 3
             height: Style.space(32)
             radius: Style.rounding(6)
-            color: rArea.containsMouse ? Color.alpha(Color.foreground, 0.12) : Color.alpha(Color.foreground, 0.06)
+            color: rArea.containsMouse ? Util.alpha(Color.foreground, 0.12) : Util.alpha(Color.foreground, 0.06)
             border.width: 1
-            border.color: Color.alpha(Color.foreground, 0.15)
+            border.color: Util.alpha(Color.foreground, 0.15)
 
             Text {
               anchors.centerIn: parent

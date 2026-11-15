@@ -1,6 +1,4 @@
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -58,7 +56,7 @@ BarWidget {
   function injectPanel() {
     if (!panelLoader.item) return
     panelLoader.item.bar = root.bar
-    panelLoader.item.anchorItem = barPill
+    panelLoader.item.anchorItem = button
     panelLoader.item.hostWidget = root
     panelLoader.item.parentWidget = root
   }
@@ -71,8 +69,8 @@ BarWidget {
 
   onBarChanged: injectPanel()
 
-  implicitWidth: barPill.implicitWidth
-  implicitHeight: barPill.implicitHeight
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   Loader {
     id: panelLoader
@@ -113,63 +111,27 @@ BarWidget {
 
   Component.onCompleted: root.refresh()
 
-  // Clickable Bar Button
-  Rectangle {
-    id: barPill
-    implicitWidth: contentRow.implicitWidth + Style.space(16)
-    implicitHeight: root.bar ? Math.min(root.bar.height - Style.space(8), Style.space(30)) : Style.space(30)
-    anchors.verticalCenter: parent.verticalCenter
-    radius: Style.rounding(8)
-    color: {
-      if (root.aiData.is_warning) return Color.alpha(Color.red, 0.25)
-      if (root.aiData.server_count > 0) return Color.alpha(Color.accent, 0.20)
-      return mouseArea.containsMouse ? Color.alpha(Color.foreground, 0.10) : Color.alpha(Color.foreground, 0.04)
-    }
-    border.width: 1
-    border.color: {
-      if (root.aiData.is_warning) return Color.red
-      if (root.aiData.server_count > 0) return Color.accent
-      return Color.alpha(Color.foreground, 0.12)
+  BarIconButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: "🧠"
+    tooltipText: root.aiData.server_count > 0 ? "AI Sentinel: " + root.aiData.badge_text : "AI Sentinel (Idle)"
+    onPressed: function(buttonCode) {
+      if (buttonCode === Qt.LeftButton) root.toggle()
     }
 
-    Behavior on color { ColorAnimation { duration: Style.duration(150) } }
-    Behavior on border.color { ColorAnimation { duration: Style.duration(150) } }
-
-    Row {
-      id: contentRow
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-
-      // Status Indicator Dot or Brain Glyph
-      Text {
-        text: root.aiData.server_count > 0 ? "●" : "🧠"
-        color: {
-          if (root.aiData.is_warning) return Color.red
-          if (root.aiData.server_count > 0) return Color.accent
-          return Color.muted
-        }
-        font.pixelSize: Style.font.caption
-        anchors.verticalCenter: parent.verticalCenter
-      }
-
-      // Live Text: e.g. "AI (1) • 5.8 GB" or "AI"
-      Text {
-        textFormat: Text.PlainText
-        text: root.aiData.badge_text
-        color: root.aiData.server_count > 0 ? Color.foreground : Color.muted
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        font.bold: root.aiData.server_count > 0
-        anchors.verticalCenter: parent.verticalCenter
-      }
-    }
-
-    MouseArea {
-      id: mouseArea
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: root.toggle()
+    // Active status dot indicator
+    Rectangle {
+      visible: root.aiData.server_count > 0
+      width: Style.space(8)
+      height: Style.space(8)
+      radius: Style.rounding(4)
+      color: root.aiData.is_warning ? Color.red : Color.accent
+      anchors.top: parent.top
+      anchors.right: parent.right
+      anchors.topMargin: Style.space(4)
+      anchors.rightMargin: Style.space(4)
     }
   }
 }
