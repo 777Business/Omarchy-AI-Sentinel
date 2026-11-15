@@ -45,6 +45,27 @@ omarchy plugin enable omarchy-ai-sentinel --section right
 
 ---
 
+## Removal
+
+To disable or completely remove the plugin:
+
+```bash
+# Disable without uninstalling:
+omarchy plugin disable omarchy-ai-sentinel
+
+# Completely uninstall:
+omarchy plugin remove omarchy-ai-sentinel --yes
+```
+
+---
+
+## Dependencies
+
+- **Python 3** (Standard on Omarchy/Arch Linux)
+- **NVIDIA GPU Driver** (`nvidia-smi` utility for VRAM tracking)
+
+---
+
 ## Architecture
 
 - **`manifest.json`**: Official Omarchy Plugin Schema v1 specification.
