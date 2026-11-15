@@ -50,9 +50,15 @@ AI Sentinel runs a non-blocking asynchronous sampler that continuously inspects 
 ### 🚨 Instant Panic "Release All VRAM"
 Need to quickly launch a demanding game, render a video timeline in FilmCraft / DaVinci Resolve, or spin up a new agent cluster? Tap **Release All VRAM & Stop AI Servers** to instantly terminate all AI processes and flush GPU memory to pristine desktop baseline.
 
-### 📌 Custom Preset Pinning & Quick Launchers
-- Comes pre-configured with quick-launch triggers for **Llama Server** (`systemctl --user start llama-server.service`), **Ollama**, and **Strata**.
-- Discovering an unlisted AI engine? AI Sentinel provides an inline **PIN** action to permanently register the command into your custom presets.
+### 📌 Expanded Quick Start Grid & Custom Preset Pinning
+- Comes pre-configured with a responsive launcher grid for:
+  - **Llama Server**: High-performance local llama.cpp GGUF server & router (`systemctl --user start llama-server.service`).
+  - **DeepSeek**: DeepSeek Autonomous Harness web environment (`dsh web`).
+  - **Ollama**: Universal local model daemon (`ollama serve`).
+  - **Strata**: Multi-GPU split-inference engine (`strata launch`).
+  - **VoiceStudio**: Dedicated RTX 3060 CUDA audio backend (`systemctl --user start voicestudio.service`).
+  - **vLLM**: Production high-throughput inference engine (`vllm serve`).
+- **Dynamic Pinning & Unpinning**: Discovering an unlisted AI engine or custom script? AI Sentinel provides an inline **PIN** action to permanently register the command into your custom presets, complete with one-click removal (`×`).
 
 ### 🎨 Native Omarchy & Quickshell Integration
 Built with pure Qt Quick / QML following the official Omarchy Quattro design language:
@@ -198,7 +204,7 @@ Example configuration:
     "id": "deepseek-local",
     "name": "DeepSeek 9B",
     "pattern": "llama-server",
-    "cmd": "/home/shadow/.local/bin/llama-server-launcher.sh"
+    "cmd": "~/.local/bin/llama-server.sh"
   }
 ]
 ```

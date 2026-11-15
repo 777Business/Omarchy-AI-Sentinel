@@ -102,7 +102,7 @@ def stop_pid(pid):
 
 def stop_all():
     print("[AI Sentinel] Stopping all AI servers...")
-    services = ["llama-server.service", "ollama.service", "strata.service"]
+    services = ["llama-server.service", "ollama.service", "strata.service", "voicestudio.service", "voxtype.service"]
     for s in services:
         subprocess.run(["systemctl", "--user", "stop", s], stderr=subprocess.DEVNULL)
 
@@ -110,11 +110,13 @@ def stop_all():
         "llama-server",
         "llama-router.py",
         "llama.cpp",
+        "dsh",
         "ollama",
         "strata",
         "strata-engine",
         "vllm",
-        "koboldcpp"
+        "koboldcpp",
+        "voxtype"
     ]
     for p in process_names:
         subprocess.run(["pkill", "-15", "-f", p], stderr=subprocess.DEVNULL)
@@ -139,29 +141,37 @@ def start_engine(engine_name):
             subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             return True
 
-    if engine_name in ("llama-server", "llama-router", "llama.cpp", "llama"):
-        # First check if systemd unit exists
-        res = subprocess.run(["systemctl", "--user", "start", "llama-server.service"], stderr=subprocess.DEVNULL)
-        if res.returncode == 0:
-            print("[AI Sentinel] Started llama-server.service via systemd")
-            return True
-        router_script = os.path.join(home, ".local/bin/llama-router.py")
-        if os.path.exists(router_script):
-            subprocess.Popen(["python3", router_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            return True
-        else:
-            print(f"[AI Sentinel] Error: {router_script} not found")
-            return False
-    elif engine_name == "ollama":
-        cmd = ["ollama", "serve"]
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    builtin_commands = {
+        "llama-server": "systemctl --user start llama-server.service",
+        "llama-router": "systemctl --user start llama-server.service",
+        "dsh": "dsh web",
+        "ollama": "ollama serve",
+        "strata": "strata launch",
+        "voicestudio": "systemctl --user start voicestudio.service",
+        "voxtype": "systemctl --user start voxtype.service",
+        "vllm": "vllm serve",
+        "koboldcpp": "koboldcpp"
+    }
+
+    if engine_name in builtin_commands:
+        cmd = builtin_commands[engine_name]
+        if cmd.startswith("systemctl"):
+            res = subprocess.run(cmd.split(), stderr=subprocess.DEVNULL)
+            if res.returncode == 0:
+                print(f"[AI Sentinel] Started {engine_name} via systemd")
+                return True
+        subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        print(f"[AI Sentinel] Launched {engine_name} via: {cmd}")
         return True
-    elif engine_name == "strata":
-        subprocess.Popen(["bash", "-c", "strata launch"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+    # Check if a custom raw command was provided
+    if " " in engine_name:
+        subprocess.Popen(["bash", "-c", engine_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        print(f"[AI Sentinel] Launched custom command: {engine_name}")
         return True
-    else:
-        print(f"[AI Sentinel] Unknown engine: {engine_name}")
-        return False
+
+    print(f"[AI Sentinel] Unknown engine: {engine_name}")
+    return False
 
 def main():
     if len(sys.argv) < 2:

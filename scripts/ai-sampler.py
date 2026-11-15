@@ -132,8 +132,11 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
         ("llama-router", "Llama Router", "llama-server"),
         ("llama.cpp", "Llama.cpp", "llama-server"),
         ("llama-cli", "Llama CLI", "llama-server"),
+        ("dsh", "DeepSeek Harness", "dsh"),
         ("ollama", "Ollama", "ollama"),
         ("strata", "Strata Engine", "strata"),
+        ("voicestudio", "VoiceStudio", "voicestudio"),
+        ("voxtype", "Voxtype", "voxtype"),
         ("vllm", "vLLM Server", "vllm"),
         ("koboldcpp", "KoboldCPP", "koboldcpp"),
         ("text-generation-inference", "TGI Server", "tgi"),
@@ -262,11 +265,16 @@ def main():
     # Presets list for UI
     presets = [
         {"id": "llama-server", "name": "Llama Server", "cmd": "systemctl --user start llama-server.service"},
+        {"id": "dsh", "name": "DeepSeek", "cmd": "dsh web"},
         {"id": "ollama", "name": "Ollama", "cmd": "ollama serve"},
-        {"id": "strata", "name": "Strata", "cmd": "strata launch"}
+        {"id": "strata", "name": "Strata", "cmd": "strata launch"},
+        {"id": "voicestudio", "name": "VoiceStudio", "cmd": "systemctl --user start voicestudio.service"},
+        {"id": "vllm", "name": "vLLM", "cmd": "vllm serve"}
     ]
     for cp in custom_presets:
-        presets.append(cp)
+        cp_dict = dict(cp)
+        cp_dict["is_custom"] = True
+        presets.append(cp_dict)
 
     data = {
         "status": badge_status,

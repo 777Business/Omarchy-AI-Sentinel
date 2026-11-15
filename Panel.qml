@@ -28,8 +28,11 @@ Panel {
     "is_warning": false,
     "presets": [
       { "id": "llama-server", "name": "Llama Server", "cmd": "systemctl --user start llama-server.service" },
+      { "id": "dsh", "name": "DeepSeek", "cmd": "dsh web" },
       { "id": "ollama", "name": "Ollama", "cmd": "ollama serve" },
-      { "id": "strata", "name": "Strata", "cmd": "strata launch" }
+      { "id": "strata", "name": "Strata", "cmd": "strata launch" },
+      { "id": "voicestudio", "name": "VoiceStudio", "cmd": "systemctl --user start voicestudio.service" },
+      { "id": "vllm", "name": "vLLM", "cmd": "vllm serve" }
     ],
     "servers": []
   }
@@ -453,14 +456,17 @@ Panel {
           color: Util.alpha(Color.foreground, 0.65)
         }
 
-        Flow {
+        Grid {
+          id: presetsGrid
           width: parent.width
-          spacing: Style.space(6)
+          columns: 3
+          columnSpacing: Style.space(6)
+          rowSpacing: Style.space(6)
 
           Repeater {
             model: root.aiData.presets || []
             delegate: Rectangle {
-              width: (mainColumn.width - (Style.space(6) * (Math.min(3, root.aiData.presets.length) - 1))) / Math.min(3, root.aiData.presets.length)
+              width: Math.floor((mainColumn.width - (Style.space(6) * 2)) / 3)
               height: Style.space(34)
               radius: root.getRounding(6)
               color: pArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
@@ -470,6 +476,8 @@ Panel {
               Row {
                 anchors.centerIn: parent
                 spacing: Style.space(4)
+                width: parent.width - Style.space(12)
+
                 Text {
                   text: "▶"
                   font.pixelSize: Style.font.caption
@@ -483,6 +491,7 @@ Panel {
                   font.bold: true
                   color: Color.foreground
                   elide: Text.ElideRight
+                  width: parent.width - Style.space(14)
                   anchors.verticalCenter: parent.verticalCenter
                 }
               }
@@ -493,6 +502,36 @@ Panel {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.startEngine(modelData.id)
+              }
+
+              // Delete button for custom pinned presets
+              Rectangle {
+                visible: modelData.is_custom === true
+                z: 2
+                width: Style.space(14)
+                height: Style.space(14)
+                radius: root.getRounding(3)
+                color: delArea.containsMouse ? "#ef4444" : Util.alpha(Color.foreground, 0.25)
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: Style.space(2)
+                anchors.rightMargin: Style.space(2)
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "×"
+                  font.pixelSize: Style.fontSize(10)
+                  font.bold: true
+                  color: "#ffffff"
+                }
+
+                MouseArea {
+                  id: delArea
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.removePreset(modelData.id)
+                }
               }
             }
           }
