@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy-ai-sentinel",
+  "name": "AI Sentinel",
+  "version": "1.0.0",
+  "author": "777Business",
+  "license": "MIT",
+  "description": "Local AI & LLM server manager for Omarchy. Real-time VRAM tracking, active model status (Ollama, Llama-server, Strata), and one-click instant memory release.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "AI Sentinel",
+    "description": "Live AI server status badge and VRAM quick-release manager",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

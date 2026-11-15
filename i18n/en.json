@@ -1,0 +1,12 @@
+{
+  "title": "AI Sentinel",
+  "subtitle": "Local AI & VRAM Manager",
+  "gpuVram": "GPU VRAM USAGE",
+  "gpuCompute": "GPU Compute Activity",
+  "freeAll": "Release All VRAM & Stop AI Servers",
+  "activeServers": "Active AI Servers",
+  "noServers": "No AI servers running",
+  "vramClear": "VRAM is completely clear for games & apps",
+  "quickStart": "QUICK START PRESETS",
+  "stop": "STOP"
+}
