@@ -14,6 +14,8 @@
 ## Features
 
 - 🔍 **Zero-Config Auto-Discovery**: Automatically detects active AI servers and extracts the active model name, PID, listening port, and per-PID VRAM.
+- ⚡ **Universal GPU Process Detection**: Automatically catches *any* custom AI server, microservice, or PyTorch process utilizing GPU compute.
+- 📌 **Custom Presets & One-Click Pinning**: Detected new or unlisted servers can be pinned to your permanent launch presets with one click.
 - 🟢 **Glanceable Top Bar Pill**:
   - **Idle**: Clean neutral icon when no models are loaded (`🧠 AI`).
   - **Active**: Live badge with active server count & VRAM consumed (e.g. `🟢 AI (1) • 5.8 GB`).

@@ -6,6 +6,51 @@ import signal
 import subprocess
 import json
 
+CONFIG_DIR = os.path.expanduser("~/.config/omarchy-ai-sentinel")
+CUSTOM_PRESETS_FILE = os.path.join(CONFIG_DIR, "custom_presets.json")
+
+def load_custom_presets():
+    if not os.path.exists(CUSTOM_PRESETS_FILE):
+        return []
+    try:
+        with open(CUSTOM_PRESETS_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("presets", [])
+    except Exception:
+        return []
+
+def save_custom_presets(presets):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CUSTOM_PRESETS_FILE, "w") as f:
+        json.dump({"presets": presets}, f, indent=2)
+
+def add_preset(preset_id, name, pattern, cmd):
+    presets = load_custom_presets()
+    for p in presets:
+        if p["id"] == preset_id:
+            p["name"] = name
+            p["pattern"] = pattern
+            p["cmd"] = cmd
+            save_custom_presets(presets)
+            print(f"[AI Sentinel] Updated preset: {name}")
+            return True
+    presets.append({
+        "id": preset_id,
+        "name": name,
+        "pattern": pattern,
+        "cmd": cmd
+    })
+    save_custom_presets(presets)
+    print(f"[AI Sentinel] Added preset: {name}")
+    return True
+
+def remove_preset(preset_id):
+    presets = load_custom_presets()
+    presets = [p for p in presets if p["id"] != preset_id]
+    save_custom_presets(presets)
+    print(f"[AI Sentinel] Removed preset: {preset_id}")
+    return True
+
 def get_systemd_unit(pid):
     try:
         with open(f"/proc/{pid}/cgroup", "r") as f:
@@ -34,7 +79,6 @@ def stop_pid(pid):
             except OSError:
                 print(f"[AI Sentinel] Successfully terminated PID {pid}")
                 return True
-        # Force kill if still alive
         os.kill(pid, signal.SIGKILL)
         print(f"[AI Sentinel] Force killed PID {pid}")
         return True
@@ -46,19 +90,18 @@ def stop_pid(pid):
 
 def stop_all():
     print("[AI Sentinel] Stopping all AI servers...")
-    # 1. Stop any known systemd AI services
     services = ["llama-server.service", "ollama.service", "strata.service"]
     for s in services:
         subprocess.run(["systemctl", "--user", "stop", s], stderr=subprocess.DEVNULL)
 
-    # 2. Kill by process names
     process_names = [
         "llama-server",
         "llama-router.py",
         "ollama",
         "strata",
         "strata-engine",
-        "vllm"
+        "vllm",
+        "koboldcpp"
     ]
     for p in process_names:
         subprocess.run(["pkill", "-15", "-f", p], stderr=subprocess.DEVNULL)
@@ -74,6 +117,15 @@ def stop_all():
 def start_engine(engine_name):
     print(f"[AI Sentinel] Starting engine: {engine_name}...")
     home = os.path.expanduser("~")
+    
+    # Check custom presets first
+    custom_presets = load_custom_presets()
+    for cp in custom_presets:
+        if cp["id"] == engine_name:
+            cmd = cp["cmd"]
+            subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+
     if engine_name == "ollama":
         cmd = ["ollama", "serve"]
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -87,7 +139,6 @@ def start_engine(engine_name):
             print(f"[AI Sentinel] Error: {router_script} not found")
             return False
     elif engine_name == "strata":
-        # Launch strata via bash
         subprocess.Popen(["bash", "-c", "strata launch"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return True
     else:
@@ -96,7 +147,7 @@ def start_engine(engine_name):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: ai-ctl.py [stop <pid> | stop-all | start <engine>]")
+        print("Usage: ai-ctl.py [stop <pid> | stop-all | start <engine> | add-preset <id> <name> <pattern> <cmd> | remove-preset <id>]")
         sys.exit(1)
 
     cmd = sys.argv[1].lower()
@@ -108,6 +159,15 @@ def main():
     elif cmd == "start" and len(sys.argv) >= 3:
         engine = sys.argv[2]
         start_engine(engine)
+    elif cmd == "add-preset" and len(sys.argv) >= 6:
+        preset_id = sys.argv[2]
+        name = sys.argv[3]
+        pattern = sys.argv[4]
+        launch_cmd = sys.argv[5]
+        add_preset(preset_id, name, pattern, launch_cmd)
+    elif cmd == "remove-preset" and len(sys.argv) >= 3:
+        preset_id = sys.argv[2]
+        remove_preset(preset_id)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

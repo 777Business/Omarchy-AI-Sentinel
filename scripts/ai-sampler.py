@@ -4,7 +4,19 @@ import sys
 import re
 import json
 import subprocess
-import glob
+
+CONFIG_DIR = os.path.expanduser("~/.config/omarchy-ai-sentinel")
+CUSTOM_PRESETS_FILE = os.path.join(CONFIG_DIR, "custom_presets.json")
+
+def load_custom_presets():
+    if not os.path.exists(CUSTOM_PRESETS_FILE):
+        return []
+    try:
+        with open(CUSTOM_PRESETS_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("presets", [])
+    except Exception:
+        return []
 
 def get_gpu_info():
     info = {
@@ -57,7 +69,6 @@ def get_listening_ports():
             stderr=subprocess.DEVNULL,
             timeout=2
         ).decode()
-        # Look for pid=XXXX and port
         for line in out.splitlines():
             m_port = re.search(r':(\d+)\s+', line)
             m_pid = re.search(r'pid=(\d+)', line)
@@ -70,20 +81,16 @@ def get_listening_ports():
     return ports
 
 def extract_model_name(args_str):
-    # Check -m or --model
     m = re.search(r'(?:-m|--model)\s+([^\s]+)', args_str)
     if m:
         path = m.group(1)
         base = os.path.basename(path)
-        # remove extensions like .gguf, .bin
         return re.sub(r'\.(?:gguf|bin|safetensors)$', '', base, flags=re.I)
 
-    # Check --alias
     m = re.search(r'--alias\s+([^\s]+)', args_str)
     if m:
         return m.group(1)
 
-    # Check --pack or --native
     m = re.search(r'(?:--pack|--native)\s+([^\s]+)', args_str)
     if m:
         return os.path.basename(m.group(1))
@@ -102,19 +109,27 @@ def is_systemd_service(pid):
         pass
     return None
 
-def scan_ai_processes(gpu_info, listening_ports):
+def scan_ai_processes(gpu_info, listening_ports, custom_presets):
     servers = []
     
-    # Signatures for known AI engines
+    # Built-in engines
     patterns = [
         ("llama-server", "Llama Server", "llama-server"),
         ("llama-router", "Llama Router", "llama-server"),
         ("ollama", "Ollama", "ollama"),
         ("strata", "Strata Engine", "strata"),
         ("vllm", "vLLM Server", "vllm"),
+        ("koboldcpp", "KoboldCPP", "koboldcpp"),
         ("text-generation-inference", "TGI Server", "tgi"),
-        ("lmstudio", "LM Studio", "lmstudio")
+        ("lmstudio", "LM Studio", "lmstudio"),
+        ("localai", "LocalAI", "localai"),
+        ("tabbyapi", "TabbyAPI", "tabbyapi"),
+        ("aphrodite", "Aphrodite Engine", "aphrodite")
     ]
+
+    # Add custom saved presets
+    for cp in custom_presets:
+        patterns.append((cp["pattern"].lower(), cp["name"], cp["id"]))
 
     try:
         ps_out = subprocess.check_output(
@@ -126,6 +141,9 @@ def scan_ai_processes(gpu_info, listening_ports):
         return servers
 
     seen_pids = set()
+
+    # Desktop binaries to ignore even if they use GPU
+    ignore_comm = {"hyprland", "xwayland", "quickshell", "nautilus", "chrome", "firefox", "electron", "filmcraft", "antigravity"}
 
     for line in ps_out.splitlines():
         line = line.strip()
@@ -144,41 +162,39 @@ def scan_ai_processes(gpu_info, listening_ports):
         except ValueError:
             continue
 
-        # Skip our own sampler / ctl scripts or greps
         if "ai-sampler.py" in args or "ai-ctl.py" in args or "grep" in comm:
             continue
 
         matched_engine = None
         friendly_name = None
+        is_saved = False
+
         for pat, fname, eng in patterns:
             if pat in comm.lower() or pat in args.lower():
-                # Avoid picking up python scripts that just import or mention ollama unless it's a server
-                if "python" in comm and "llama-router" not in args and "vllm" not in args:
+                if "python" in comm and "llama-router" not in args and "vllm" not in args and pat not in args.lower():
                     continue
                 matched_engine = eng
                 friendly_name = fname
+                is_saved = True
                 break
 
-        if not matched_engine:
-            # Check if this process is holding compute memory according to nvidia-smi
-            if pid in gpu_info["apps"] and ("python" in comm or "server" in comm):
-                matched_engine = "custom-ai"
-                friendly_name = comm.capitalize()
+        # Catch-all: Any process holding GPU Compute memory that isn't a desktop app
+        if not matched_engine and pid in gpu_info["apps"] and comm.lower() not in ignore_comm:
+            matched_engine = "detected-gpu"
+            friendly_name = comm.capitalize()
+            is_saved = False
 
         if matched_engine and pid not in seen_pids:
             seen_pids.add(pid)
             
-            # Port detection
             port = listening_ports.get(pid)
             if not port:
-                # check command line flags -p / --port
                 m_port = re.search(r'(?:-p|--port)\s+(\d+)', args)
                 if m_port:
                     port = int(m_port.group(1))
 
             vram_mib = gpu_info["apps"].get(pid, 0)
             if vram_mib == 0 and "vram_used_mib" in gpu_info and len(seen_pids) == 1:
-                # If only one AI process and nvidia-smi didn't break down by PID
                 vram_mib = max(0, gpu_info["vram_used_mib"] - 600)
 
             model = extract_model_name(args)
@@ -196,15 +212,18 @@ def scan_ai_processes(gpu_info, listening_ports):
                 "cpu_pct": cpu,
                 "mem_pct": mem,
                 "service_unit": service_unit,
-                "cmd": args[:120]
+                "is_saved": is_saved,
+                "cmd": args[:120],
+                "comm": comm
             })
 
     return servers
 
 def main():
+    custom_presets = load_custom_presets()
     gpu = get_gpu_info()
     ports = get_listening_ports()
-    servers = scan_ai_processes(gpu, ports)
+    servers = scan_ai_processes(gpu, ports, custom_presets)
 
     total_ai_vram = sum(s["vram_mib"] for s in servers)
     total_ai_gb = f"{total_ai_vram / 1024:.1f} GB" if total_ai_vram >= 1024 else f"{total_ai_vram} MB"
@@ -214,13 +233,21 @@ def main():
     used_pct = round((total_gpu_used / total_gpu_cap) * 100) if total_gpu_cap > 0 else 0
     is_warning = used_pct >= 85
 
-    # Badge label for navigation bar
     if len(servers) > 0:
         badge_text = f"AI ({len(servers)}) • {total_ai_gb}"
         badge_status = "warning" if is_warning else "active"
     else:
         badge_text = "AI"
         badge_status = "idle"
+
+    # Presets list for UI
+    presets = [
+        {"id": "ollama", "name": "Ollama", "cmd": "ollama serve"},
+        {"id": "strata", "name": "Strata", "cmd": "strata launch"},
+        {"id": "llama-router", "name": "Router", "cmd": "llama-router"}
+    ]
+    for cp in custom_presets:
+        presets.append(cp)
 
     data = {
         "status": badge_status,
@@ -236,6 +263,7 @@ def main():
         "gpu_used_pct": used_pct,
         "gpu_compute_pct": gpu["gpu_util_pct"],
         "is_warning": is_warning,
+        "presets": presets,
         "servers": servers
     }
 

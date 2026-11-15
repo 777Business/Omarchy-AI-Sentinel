@@ -25,6 +25,11 @@ Panel {
     "gpu_used_pct": 0,
     "gpu_compute_pct": 0,
     "is_warning": false,
+    "presets": [
+      { "id": "ollama", "name": "Ollama", "cmd": "ollama serve" },
+      { "id": "strata", "name": "Strata", "cmd": "strata launch" },
+      { "id": "llama-router", "name": "Router", "cmd": "llama-router" }
+    ],
     "servers": []
   }
 
@@ -63,6 +68,16 @@ Panel {
 
   function startEngine(engine) {
     Quickshell.execDetached([root.ctlPath, "start", engine])
+    refreshTimer.restart()
+  }
+
+  function addPreset(id, name, pattern, cmd) {
+    Quickshell.execDetached([root.ctlPath, "add-preset", id, name, pattern, cmd])
+    refreshTimer.restart()
+  }
+
+  function removePreset(id) {
+    Quickshell.execDetached([root.ctlPath, "remove-preset", id])
     refreshTimer.restart()
   }
 
@@ -288,14 +303,14 @@ Panel {
               anchors.margins: Style.space(12)
               spacing: Style.space(8)
 
-              // Header Row with STOP button anchored safely inside
+              // Header Row with STOP and optional PIN buttons
               Item {
                 width: parent.width
                 height: Style.space(26)
 
                 Row {
                   anchors.left: parent.left
-                  anchors.right: stopBtn.left
+                  anchors.right: actionsRow.left
                   anchors.rightMargin: Style.space(8)
                   anchors.verticalCenter: parent.verticalCenter
                   spacing: Style.space(6)
@@ -317,31 +332,64 @@ Panel {
                   }
                 }
 
-                // Stop Button
-                Rectangle {
-                  id: stopBtn
+                Row {
+                  id: actionsRow
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
-                  width: Style.space(60)
-                  height: Style.space(24)
-                  radius: Style.rounding(4)
-                  color: stopArea.containsMouse ? "#dc2626" : "#ef4444"
+                  spacing: Style.space(6)
 
-                  Text {
-                    anchors.centerIn: parent
-                    text: "STOP"
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    color: "#ffffff"
+                  // Save / Pin button if not already a saved preset
+                  Rectangle {
+                    visible: !modelData.is_saved
+                    width: Style.space(68)
+                    height: Style.space(24)
+                    radius: Style.rounding(4)
+                    color: pinArea.containsMouse ? Util.alpha(Color.accent, 0.35) : Util.alpha(Color.accent, 0.20)
+                    border.width: 1
+                    border.color: Color.accent
+
+                    Text {
+                      anchors.centerIn: parent
+                      text: "+ Pin"
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      color: Color.accent
+                    }
+
+                    MouseArea {
+                      id: pinArea
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.addPreset(modelData.comm.toLowerCase(), modelData.name, modelData.comm, modelData.cmd)
+                    }
                   }
 
-                  MouseArea {
-                    id: stopArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.stopServer(modelData.pid)
+                  // Stop Button
+                  Rectangle {
+                    id: stopBtn
+                    width: Style.space(60)
+                    height: Style.space(24)
+                    radius: Style.rounding(4)
+                    color: stopArea.containsMouse ? "#dc2626" : "#ef4444"
+
+                    Text {
+                      anchors.centerIn: parent
+                      text: "STOP"
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      color: "#ffffff"
+                    }
+
+                    MouseArea {
+                      id: stopArea
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.stopServer(modelData.pid)
+                    }
                   }
                 }
               }
@@ -392,112 +440,47 @@ Panel {
           color: Util.alpha(Color.foreground, 0.65)
         }
 
-        Row {
+        Flow {
           width: parent.width
           spacing: Style.space(6)
 
-          Rectangle {
-            width: (parent.width - Style.space(12)) / 3
-            height: Style.space(34)
-            radius: Style.rounding(6)
-            color: oArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
-            border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.20)
+          Repeater {
+            model: root.aiData.presets || []
+            delegate: Rectangle {
+              width: (mainColumn.width - (Style.space(6) * (Math.min(3, root.aiData.presets.length) - 1))) / Math.min(3, root.aiData.presets.length)
+              height: Style.space(34)
+              radius: Style.rounding(6)
+              color: pArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
+              border.width: 1
+              border.color: Util.alpha(Color.foreground, 0.20)
 
-            Row {
-              anchors.centerIn: parent
-              spacing: Style.space(4)
-              Text {
-                text: "▶"
-                font.pixelSize: Style.font.caption
-                color: Color.accent
-                anchors.verticalCenter: parent.verticalCenter
+              Row {
+                anchors.centerIn: parent
+                spacing: Style.space(4)
+                Text {
+                  text: "▶"
+                  font.pixelSize: Style.font.caption
+                  color: Color.accent
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                  text: modelData.name
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  color: Color.foreground
+                  elide: Text.ElideRight
+                  anchors.verticalCenter: parent.verticalCenter
+                }
               }
-              Text {
-                text: "Ollama"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                color: Color.foreground
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-            MouseArea {
-              id: oArea
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.startEngine("ollama")
-            }
-          }
 
-          Rectangle {
-            width: (parent.width - Style.space(12)) / 3
-            height: Style.space(34)
-            radius: Style.rounding(6)
-            color: sArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
-            border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.20)
-
-            Row {
-              anchors.centerIn: parent
-              spacing: Style.space(4)
-              Text {
-                text: "▶"
-                font.pixelSize: Style.font.caption
-                color: Color.accent
-                anchors.verticalCenter: parent.verticalCenter
+              MouseArea {
+                id: pArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.startEngine(modelData.id)
               }
-              Text {
-                text: "Strata"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                color: Color.foreground
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-            MouseArea {
-              id: sArea
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.startEngine("strata")
-            }
-          }
-
-          Rectangle {
-            width: (parent.width - Style.space(12)) / 3
-            height: Style.space(34)
-            radius: Style.rounding(6)
-            color: rArea.containsMouse ? Util.alpha(Color.foreground, 0.16) : Util.alpha(Color.foreground, 0.08)
-            border.width: 1
-            border.color: Util.alpha(Color.foreground, 0.20)
-
-            Row {
-              anchors.centerIn: parent
-              spacing: Style.space(4)
-              Text {
-                text: "▶"
-                font.pixelSize: Style.font.caption
-                color: Color.accent
-                anchors.verticalCenter: parent.verticalCenter
-              }
-              Text {
-                text: "Router"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                color: Color.foreground
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-            MouseArea {
-              id: rArea
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.startEngine("llama-router")
             }
           }
         }
