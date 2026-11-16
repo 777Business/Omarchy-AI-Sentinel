@@ -180,8 +180,6 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
     except Exception:
         return servers
 
-    seen_pids = set()
-
     # Known non-AI applications to ignore even if they use GPU memory/compute
     ignore_comm = {
         "hyprland", "xwayland", "quickshell", "nautilus", "chrome", "firefox",
@@ -190,6 +188,7 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
         "ghostty", "foot", "chatgpt"
     }
 
+    all_procs = {}
     for line in ps_out.splitlines():
         line = line.strip()
         if not line:
@@ -213,7 +212,26 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
         except (FileNotFoundError, PermissionError, OSError):
             continue
 
+        all_procs[pid] = {
+            "ppid": ppid,
+            "cpu": cpu,
+            "mem": mem,
+            "comm": comm,
+            "args": args
+        }
+
+    # Step 1: Detect candidate AI processes
+    candidates = {}
+    for pid, p in all_procs.items():
+        comm = p["comm"]
+        args = p["args"]
+
         if "ai-sampler.py" in args or "ai-ctl.py" in args or "grep" in comm or "--type=" in args:
+            continue
+
+        # Ignore internal compiler and multiprocessing workers from becoming standalone candidates
+        args_lower = args.lower()
+        if any(w in args_lower for w in ["compile_worker", "subproc_pool", "--multiprocessing-fork", "resource_tracker"]):
             continue
 
         matched_engine = None
@@ -221,8 +239,8 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
         is_saved = False
 
         for pat, fname, eng in patterns:
-            if pat in comm.lower() or pat in args.lower():
-                if "python" in comm and "llama-router" not in args and "vllm" not in args and pat not in args.lower():
+            if pat in comm.lower() or pat in args_lower:
+                if "python" in comm and "llama-router" not in args and "vllm" not in args and pat not in args_lower:
                     continue
                 matched_engine = eng
                 friendly_name = fname
@@ -235,9 +253,7 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
             friendly_name = comm.capitalize()
             is_saved = False
 
-        if matched_engine and pid not in seen_pids:
-            seen_pids.add(pid)
-            
+        if matched_engine:
             port = listening_ports.get(pid)
             if not port:
                 m_port = re.search(r'(?:-p|--port)\s+(\d+)', args)
@@ -245,27 +261,69 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
                     port = int(m_port.group(1))
 
             vram_mib = gpu_info["apps"].get(pid, 0)
-
             model = extract_model_name(args, comm, port)
             service_unit = is_systemd_service(pid)
             cmd_full = get_process_cmd(pid, fallback=args)
 
-            servers.append({
+            candidates[pid] = {
                 "pid": pid,
-                "ppid": ppid,
+                "ppid": p["ppid"],
                 "name": friendly_name,
                 "engine": matched_engine,
                 "model": model,
                 "port": port if port else "-",
                 "vram_mib": vram_mib,
-                "vram_gb": f"{vram_mib / 1024:.1f} GB" if vram_mib >= 1024 else f"{vram_mib} MB",
-                "cpu_pct": cpu,
-                "mem_pct": mem,
+                "cpu_pct": p["cpu"],
+                "mem_pct": p["mem"],
                 "service_unit": service_unit,
                 "is_saved": is_saved,
                 "cmd": cmd_full,
                 "comm": comm
-            })
+            }
+
+    # Step 2: Hierarchy resolution — collapse child/worker processes into their parent server
+    def find_candidate_root(p_id):
+        curr = all_procs.get(p_id, {}).get("ppid")
+        while curr and curr > 1:
+            if curr in candidates:
+                return curr
+            curr = all_procs.get(curr, {}).get("ppid")
+        return None
+
+    roots = {}
+    for pid, cand in candidates.items():
+        parent_cand = find_candidate_root(pid)
+        if parent_cand:
+            # Aggregate metrics into root candidate
+            parent = candidates[parent_cand]
+            parent["vram_mib"] += cand["vram_mib"]
+            parent["cpu_pct"] = round(parent["cpu_pct"] + cand["cpu_pct"], 1)
+            parent["mem_pct"] = round(parent["mem_pct"] + cand["mem_pct"], 1)
+            if parent["port"] == "-" and cand["port"] != "-":
+                parent["port"] = cand["port"]
+            if parent["model"] == "Default Model" and cand["model"] != "Default Model":
+                parent["model"] = cand["model"]
+            if not parent["service_unit"] and cand["service_unit"]:
+                parent["service_unit"] = cand["service_unit"]
+        else:
+            roots[pid] = cand
+
+    # Step 3: Roll up any non-candidate descendant workers holding GPU VRAM
+    for p_id, p_info in all_procs.items():
+        if p_id not in candidates and p_id in gpu_info["apps"]:
+            curr = p_info.get("ppid")
+            while curr and curr > 1:
+                if curr in roots:
+                    roots[curr]["vram_mib"] += gpu_info["apps"][p_id]
+                    roots[curr]["cpu_pct"] = round(roots[curr]["cpu_pct"] + p_info["cpu"], 1)
+                    break
+                curr = all_procs.get(curr, {}).get("ppid")
+
+    # Step 4: Finalize display representations
+    for pid, s in roots.items():
+        vram_mib = s["vram_mib"]
+        s["vram_gb"] = f"{vram_mib / 1024:.1f} GB" if vram_mib >= 1024 else f"{vram_mib} MB"
+        servers.append(s)
 
     return servers
 

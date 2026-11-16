@@ -112,7 +112,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(420))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(600))
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight + Style.space(16), Style.space(620))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -120,12 +120,31 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(dir) { root.switchPanel(dir) }
 
-      Column {
-        id: mainColumn
-        width: parent.width
-        spacing: Style.space(12)
-        topPadding: Style.space(8)
-        bottomPadding: Style.space(8)
+      Flickable {
+        id: scrollArea
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: mainColumn.implicitHeight + Style.space(16)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        WheelHandler {
+          target: null
+          acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+          onWheel: function(event) {
+            var dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y : (event.angleDelta.y / 120) * Style.space(60)
+            scrollArea.contentY = Math.max(0, Math.min(scrollArea.contentHeight - scrollArea.height, scrollArea.contentY - dy))
+          }
+        }
+
+        Column {
+          id: mainColumn
+          width: scrollArea.width
+          spacing: Style.space(12)
+          topPadding: Style.space(8)
+          bottomPadding: Style.space(8)
 
         // ----------------- Header -----------------
         Row {
@@ -539,4 +558,5 @@ Panel {
       }
     }
   }
+}
 }
