@@ -4,6 +4,7 @@ import sys
 import re
 import time
 import signal
+import shlex
 import subprocess
 import json
 
@@ -26,12 +27,35 @@ def save_custom_presets(presets):
         json.dump({"presets": presets}, f, indent=2)
 
 def add_preset(preset_id, name, pattern, cmd):
+    # Sanitize preset_id to safe alphanumeric characters, dashes, dots, and underscores
+    preset_id = re.sub(r'[^a-zA-Z0-9_\-\.]', '', preset_id.strip().lower())
+    if not preset_id:
+        print("[AI Sentinel] Invalid preset ID")
+        return False
+
+    name = name.strip()[:64]
+    pattern = pattern.strip()[:64]
+    if not name or not pattern:
+        print("[AI Sentinel] Name and pattern cannot be empty")
+        return False
+
+    # Validate that cmd can be cleanly parsed into an argument vector
+    try:
+        argv = shlex.split(cmd)
+        if not argv:
+            print("[AI Sentinel] Invalid empty command")
+            return False
+        clean_cmd = shlex.join(argv)
+    except ValueError as e:
+        print(f"[AI Sentinel] Malformed command syntax: {e}")
+        return False
+
     presets = load_custom_presets()
     for p in presets:
         if p["id"] == preset_id:
             p["name"] = name
             p["pattern"] = pattern
-            p["cmd"] = cmd
+            p["cmd"] = clean_cmd
             save_custom_presets(presets)
             print(f"[AI Sentinel] Updated preset: {name}")
             return True
@@ -39,7 +63,7 @@ def add_preset(preset_id, name, pattern, cmd):
         "id": preset_id,
         "name": name,
         "pattern": pattern,
-        "cmd": cmd
+        "cmd": clean_cmd
     })
     save_custom_presets(presets)
     print(f"[AI Sentinel] Added preset: {name}")
@@ -54,21 +78,44 @@ def remove_preset(preset_id):
 
 def get_systemd_unit(pid):
     try:
+        uid = os.getuid()
+        if os.stat(f"/proc/{pid}").st_uid != uid:
+            return None
         with open(f"/proc/{pid}/cgroup", "r") as f:
             content = f.read()
-            units = [u for u in re.findall(r'([^/\s]+\.service)', content) if not u.startswith("user@")]
-            if units:
-                return units[-1]
+        user_pattern = rf'(?:^|/)user@{uid}\.service/(?:.*/)?([^/\s]+\.service)'
+        for line in content.splitlines():
+            m = re.search(user_pattern, line)
+            if m:
+                unit = m.group(1)
+                if re.match(r'^[a-zA-Z0-9_\-\.\@]+\.service$', unit) and not unit.startswith("user@"):
+                    return unit
     except Exception:
         pass
     return None
 
 def stop_pid(pid):
+    uid = os.getuid()
+    try:
+        stat_info = os.stat(f"/proc/{pid}")
+        if stat_info.st_uid != uid:
+            print(f"[AI Sentinel] Permission denied: PID {pid} is owned by UID {stat_info.st_uid}, not current UID {uid}")
+            return False
+    except (FileNotFoundError, ProcessLookupError):
+        print(f"[AI Sentinel] Process PID {pid} already terminated")
+        return True
+    except Exception as e:
+        print(f"[AI Sentinel] Error inspecting PID {pid}: {e}")
+        return False
+
     unit = get_systemd_unit(pid)
     if unit:
-        print(f"[AI Sentinel] Stopping systemd unit: {unit} for PID {pid}...")
-        subprocess.run(["systemctl", "--user", "stop", unit], stderr=subprocess.DEVNULL)
-        time.sleep(0.5)
+        # Verify unit is actually an active user unit before stopping
+        check = subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit])
+        if check.returncode == 0:
+            print(f"[AI Sentinel] Stopping systemd unit: {unit} for PID {pid}...")
+            subprocess.run(["systemctl", "--user", "stop", unit], stderr=subprocess.DEVNULL)
+            time.sleep(0.5)
 
     try:
         # Also kill process group if it spawned child engines (like llama-router -> llama-server)
@@ -96,6 +143,9 @@ def stop_pid(pid):
         return True
     except ProcessLookupError:
         return True
+    except PermissionError:
+        print(f"[AI Sentinel] Permission denied killing PID {pid}")
+        return False
     except Exception as e:
         print(f"[AI Sentinel] Error killing PID {pid}: {e}")
         return False
@@ -106,6 +156,7 @@ def stop_all():
     for s in services:
         subprocess.run(["systemctl", "--user", "stop", s], stderr=subprocess.DEVNULL)
 
+    current_uid = str(os.getuid())
     process_names = [
         "llama-server",
         "llama-router.py",
@@ -119,27 +170,39 @@ def stop_all():
         "voxtype"
     ]
     for p in process_names:
-        subprocess.run(["pkill", "-15", "-f", p], stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-u", current_uid, "-15", "-f", p], stderr=subprocess.DEVNULL)
 
     time.sleep(0.8)
 
     for p in process_names:
-        subprocess.run(["pkill", "-9", "-f", p], stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-u", current_uid, "-9", "-f", p], stderr=subprocess.DEVNULL)
 
     print("[AI Sentinel] All AI servers stopped and VRAM released.")
     return True
 
+def run_command_safely(cmd_str):
+    try:
+        argv = [os.path.expanduser(a) for a in shlex.split(cmd_str)]
+        if not argv:
+            return False
+        subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
+    except Exception as e:
+        print(f"[AI Sentinel] Failed to launch '{cmd_str}': {e}")
+        return False
+
 def start_engine(engine_name):
     print(f"[AI Sentinel] Starting engine: {engine_name}...")
-    home = os.path.expanduser("~")
     
     # Check custom presets first
     custom_presets = load_custom_presets()
     for cp in custom_presets:
         if cp["id"] == engine_name:
             cmd = cp["cmd"]
-            subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            return True
+            if run_command_safely(cmd):
+                print(f"[AI Sentinel] Launched custom preset: {cp['name']}")
+                return True
+            return False
 
     builtin_commands = {
         "llama-server": "systemctl --user start llama-server.service",
@@ -155,20 +218,10 @@ def start_engine(engine_name):
 
     if engine_name in builtin_commands:
         cmd = builtin_commands[engine_name]
-        if cmd.startswith("systemctl"):
-            res = subprocess.run(cmd.split(), stderr=subprocess.DEVNULL)
-            if res.returncode == 0:
-                print(f"[AI Sentinel] Started {engine_name} via systemd")
-                return True
-        subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        print(f"[AI Sentinel] Launched {engine_name} via: {cmd}")
-        return True
-
-    # Check if a custom raw command was provided
-    if " " in engine_name:
-        subprocess.Popen(["bash", "-c", engine_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        print(f"[AI Sentinel] Launched custom command: {engine_name}")
-        return True
+        if run_command_safely(cmd):
+            print(f"[AI Sentinel] Launched {engine_name} via: {cmd}")
+            return True
+        return False
 
     print(f"[AI Sentinel] Unknown engine: {engine_name}")
     return False
@@ -180,8 +233,12 @@ def main():
 
     cmd = sys.argv[1].lower()
     if cmd == "stop" and len(sys.argv) >= 3:
-        pid = int(sys.argv[2])
-        stop_pid(pid)
+        try:
+            pid = int(sys.argv[2])
+            stop_pid(pid)
+        except ValueError:
+            print(f"[AI Sentinel] Invalid PID: {sys.argv[2]}")
+            sys.exit(1)
     elif cmd in ("stop-all", "free-all", "kill-all"):
         stop_all()
     elif cmd == "start" and len(sys.argv) >= 3:

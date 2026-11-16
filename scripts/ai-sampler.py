@@ -3,6 +3,7 @@ import os
 import sys
 import re
 import json
+import shlex
 import subprocess
 import urllib.request
 import urllib.error
@@ -114,14 +115,33 @@ def extract_model_name(args_str, comm="", port=None):
 
 def is_systemd_service(pid):
     try:
+        uid = os.getuid()
+        if os.stat(f"/proc/{pid}").st_uid != uid:
+            return None
         with open(f"/proc/{pid}/cgroup", "r") as f:
             content = f.read()
-            units = [u for u in re.findall(r'([^/\s]+\.service)', content) if not u.startswith("user@")]
-            if units:
-                return units[-1]
+        user_pattern = rf'(?:^|/)user@{uid}\.service/(?:.*/)?([^/\s]+\.service)'
+        for line in content.splitlines():
+            m = re.search(user_pattern, line)
+            if m:
+                unit = m.group(1)
+                if re.match(r'^[a-zA-Z0-9_\-\.\@]+\.service$', unit) and not unit.startswith("user@"):
+                    return unit
     except Exception:
         pass
     return None
+
+def get_process_cmd(pid, fallback=""):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            raw = f.read()
+        if raw:
+            parts = [p.decode("utf-8", "replace") for p in raw.split(b"\0") if p]
+            if parts:
+                return shlex.join(parts)
+    except Exception:
+        pass
+    return fallback
 
 def scan_ai_processes(gpu_info, listening_ports, custom_presets):
     servers = []
@@ -150,9 +170,10 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
     for cp in custom_presets:
         patterns.append((cp["pattern"].lower(), cp["name"], cp["id"]))
 
+    current_uid = os.getuid()
     try:
         ps_out = subprocess.check_output(
-            ["ps", "-eo", "pid,ppid,%cpu,%mem,comm,args", "--no-headers"],
+            ["ps", "-u", str(current_uid), "-U", str(current_uid), "-o", "pid,ppid,%cpu,%mem,comm,args", "--no-headers"],
             stderr=subprocess.DEVNULL,
             timeout=2
         ).decode()
@@ -184,6 +205,12 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
             comm = parts[4]
             args = parts[5]
         except ValueError:
+            continue
+
+        try:
+            if os.stat(f"/proc/{pid}").st_uid != current_uid:
+                continue
+        except (FileNotFoundError, PermissionError, OSError):
             continue
 
         if "ai-sampler.py" in args or "ai-ctl.py" in args or "grep" in comm or "--type=" in args:
@@ -221,6 +248,7 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
 
             model = extract_model_name(args, comm, port)
             service_unit = is_systemd_service(pid)
+            cmd_full = get_process_cmd(pid, fallback=args)
 
             servers.append({
                 "pid": pid,
@@ -235,7 +263,7 @@ def scan_ai_processes(gpu_info, listening_ports, custom_presets):
                 "mem_pct": mem,
                 "service_unit": service_unit,
                 "is_saved": is_saved,
-                "cmd": args[:120],
+                "cmd": cmd_full,
                 "comm": comm
             })
 
