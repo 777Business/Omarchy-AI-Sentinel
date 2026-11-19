@@ -13,11 +13,18 @@ BarWidget {
     "badge_text": "AI",
     "server_count": 0,
     "total_ai_vram_gb": "0 MB",
+    "system_vram_gb": "0 GB",
     "gpu_used_gb": "0 GB",
+    "gpu_free_gb": "12.0 GB",
     "gpu_total_gb": "12.0 GB",
     "gpu_used_pct": 0,
+    "ai_vram_pct": 0,
+    "system_vram_pct": 0,
+    "free_vram_pct": 100,
     "gpu_compute_pct": 0,
     "is_warning": false,
+    "fit_recommendation": "Checking VRAM...",
+    "presets": [],
     "servers": []
   }
 
@@ -27,10 +34,13 @@ BarWidget {
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
+  property bool refreshQueued: false
+  readonly property bool isRefreshing: samplerProcess.running || refreshQueued
+
   function open() {
     if (panelLoader.item) {
       panelLoader.item.open()
-      panelLoader.item.refresh()
+      root.refresh()
     }
   }
 
@@ -47,6 +57,15 @@ BarWidget {
       } else {
         panelLoader.item.open()
       }
+      if (panelLoader.item.opened) {
+        root.refresh()
+      }
+    }
+  }
+
+  onOpenedChanged: {
+    if (root.opened) {
+      root.refresh()
     }
   }
 
@@ -72,15 +91,28 @@ BarWidget {
     panelLoader.item.hostWidget = root
     panelLoader.item.parentWidget = root
     panelLoader.item.aiData = root.aiData
+    panelLoader.item.isSamplerRefreshing = root.isRefreshing
   }
 
   function refresh() {
-    if (!samplerProcess.running) {
+    if (samplerProcess.running) {
+      root.refreshQueued = true
+    } else {
       samplerProcess.running = true
     }
   }
 
   onBarChanged: injectPanel()
+  onAiDataChanged: {
+    if (panelLoader.item) {
+      panelLoader.item.aiData = root.aiData
+    }
+  }
+  onIsRefreshingChanged: {
+    if (panelLoader.item) {
+      panelLoader.item.isSamplerRefreshing = root.isRefreshing
+    }
+  }
 
   function getRounding(r) {
     return Style.cornerRadius > 0 ? Math.min(Style.cornerRadius, Style.space(r)) : Style.space(r)
@@ -118,6 +150,15 @@ BarWidget {
             console.warn("[AI Sentinel] sampler JSON parse error:", e, "raw text:", samplerOut.text)
           }
         }
+
+        if (root.refreshQueued) {
+          root.refreshQueued = false
+          Qt.callLater(function() {
+            if (!samplerProcess.running) {
+              samplerProcess.running = true
+            }
+          })
+        }
       }
     }
     stderr: StdioCollector {
@@ -133,7 +174,7 @@ BarWidget {
 
   Timer {
     id: pollTimer
-    interval: root.opened ? 1500 : 3500
+    interval: root.opened ? 1200 : 3000
     running: true
     repeat: true
     onTriggered: root.refresh()

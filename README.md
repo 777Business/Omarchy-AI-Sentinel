@@ -32,33 +32,31 @@ Leaving an unmanaged model loaded consumes power, throttles system graphics, and
 ## ✨ Key Features
 
 ### 🔍 Zero-Config Auto-Discovery & Model Introspection
-AI Sentinel runs a non-blocking asynchronous sampler that continuously inspects active compute processes, networking sockets, and GPU hardware metrics.
-- **Model Name Extraction**: Automatically queries endpoint metadata or command-line weights flags (`-m`, `--model`) to show the friendly model name (e.g. `DeepSeek-V4-Pro-Qwen3.5-9B`, `Qwen3.8-35B-A3B`).
+AI Sentinel runs a sub-30ms non-blocking asynchronous concurrent sampler that continuously inspects active compute processes, networking sockets, local AI APIs, and GPU hardware metrics.
+- **Model Name & Spec Extraction**: Automatically queries Ollama's local API (`/api/ps`) and llama-router (`/health`) or command-line weights flags (`-m`, `--model`) to show the friendly model name, parameter size, and quantization level (e.g. `qwen2.5:3b (3.1B, Q4_K_M)`, `DeepSeek-V4-Pro-Qwen3.5-9B`).
+- **Zero-Root Ollama Integration**: Tracks active models running under dedicated system users (`ollama`) and issues clean `keep_alive: 0` API unload commands to instantly liberate VRAM without requiring sudo.
 - **Dynamic Router Support**: Native integration with dynamic LLM proxies and routers (`llama-router`), distinguishing between loaded standby states and active inference sessions.
 - **Universal GPU Fallback**: Catches *any* custom PyTorch, JAX, or CUDA process consuming GPU compute memory while filtering out desktop utilities (browsers, video editors, shell).
 
 ### 📊 Real-Time VRAM & Compute Telemetry
-- **Hardware-Accurate Metrics**: Uses sub-millisecond `nvidia-smi` sampling to display total GPU VRAM used, available headroom, and real-time compute utilization percentage.
-- **Non-Duplicated Tracking**: Aggregates per-process VRAM accurately without double-counting parent/child process groups.
+- **3-Tier VRAM Breakdown**: Distinguishes between VRAM consumed specifically by AI models, VRAM held by desktop/system processes (compositor, browser), and remaining free headroom.
+- **Model Fit Advisor**: Dynamically calculates and displays what parameter sizes comfortably fit into remaining VRAM (e.g. `⚡ Fits up to ~14B (Q4) / ~8B (Q8)`).
+- **Sub-30ms Concurrent Threading**: Parallelizes `nvidia-smi`, `ss`, `ps`, and HTTP health probes into a 6-worker pool for near-instant telemetry.
 - **Proactive 85% Warning**: The bar pill dynamically transitions to warning mode when VRAM pressure exceeds safe operating thresholds, preventing unexpected OOM kernel kills.
 
 ### 🛑 One-Click Lifecycle Management & Systemd Integration
-- **Granular Server Stop**: Terminate individual runaway backends directly from their dedicated card.
+- **Granular Server Stop & Model Unload**: Terminate individual runaway backends or unload specific Ollama/router models directly from their dedicated card with instant `Stopping...` visual feedback.
 - **Systemd Unit Awareness**: Detects if an AI server is supervised by `systemd` (e.g. `llama-server.service`, `ollama.service`). Stopping a service unit cleanly issues `systemctl --user stop`, preventing systemd from auto-respawning it behind your back.
 - **Graceful SIGINT Termination**: Sends clean shutdown signals before falling back to forceful kills, eliminating model unload core dumps.
 
 ### 🚨 Instant Panic "Release All VRAM"
-Need to quickly launch a demanding game, render a video timeline in FilmCraft / DaVinci Resolve, or spin up a new agent cluster? Tap **Release All VRAM & Stop AI Servers** to instantly terminate all AI processes and flush GPU memory to pristine desktop baseline.
+Need to quickly launch a demanding game, render a video timeline in FilmCraft / DaVinci Resolve, or spin up a new agent cluster? Tap **Release All VRAM & Stop AI Servers** to instantly terminate all AI processes, flush Ollama and router models, and liberate GPU memory to pristine desktop baseline.
 
-### 📌 Expanded Quick Start Grid & Custom Preset Pinning
-- Comes pre-configured with a responsive launcher grid for:
-  - **Llama Server**: High-performance local llama.cpp GGUF server & router (`systemctl --user start llama-server.service`).
-  - **DeepSeek**: DeepSeek Autonomous Harness web environment (`dsh web`).
-  - **Ollama**: Universal local model daemon (`ollama serve`).
-  - **Strata**: Multi-GPU split-inference engine (`strata launch`).
-  - **VoiceStudio**: Dedicated RTX 3060 CUDA audio backend (`systemctl --user start voicestudio.service`).
-  - **vLLM**: Production high-throughput inference engine (`vllm serve`).
-- **Dynamic Pinning & Unpinning**: Discovering an unlisted AI engine or custom script? AI Sentinel provides an inline **PIN** action to permanently register the command into your custom presets, complete with one-click removal (`×`).
+### 📌 Expanded Quick Start Grid, Active Indicators & Preset Creator
+- Pre-configured responsive launcher grid for **Llama Server**, **DeepSeek**, **Ollama**, **Strata**, **VoiceStudio**, and **vLLM**.
+- **Live Active Preset Badges**: Presets dynamically display green `● ACTIVE` indicators when their engines are running.
+- **In-Panel Preset Creator**: Use the inline `+ Add Preset` builder to save custom launcher commands directly from the UI.
+- **1-Click API Copy**: Copy OpenAI-compatible endpoint URLs (`http://localhost:<port>/v1`) directly to your clipboard.
 
 ### 🎨 Native Omarchy & Quickshell Integration
 Built with pure Qt Quick / QML following the official Omarchy Quattro design language:
