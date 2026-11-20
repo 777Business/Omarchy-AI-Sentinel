@@ -222,29 +222,25 @@ Panel {
           bottomPadding: Style.space(8)
 
           // ----------------- Header -----------------
-          Row {
+          Item {
             width: parent.width
-            spacing: Style.space(8)
+            height: Style.space(26)
 
             Text {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
               text: "🧠 AI Sentinel"
               color: Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.subtitle
               font.bold: true
-              anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Item {
-              Layout.fillWidth: true
-              width: Math.max(0, mainColumn.width - (parent.children[0].implicitWidth + headerActions.implicitWidth + Style.space(24)))
-              height: 1
             }
 
             Row {
               id: headerActions
-              spacing: Style.space(6)
+              anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
 
               // Spinning 360 refresh button
               PanelActionButton {
@@ -714,46 +710,40 @@ Panel {
           }
 
           // ----------------- Quick Start Presets -----------------
-          Row {
+          Item {
             width: parent.width
-            spacing: Style.space(6)
+            height: Style.space(24)
 
             Text {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
               text: "QUICK START PRESETS"
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
               color: Util.alpha(Color.foreground, 0.65)
-              anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Item {
-              Layout.fillWidth: true
-              width: Math.max(0, mainColumn.width - (parent.children[0].implicitWidth + addPresetBtn.implicitWidth + Style.space(18)))
-              height: 1
             }
 
             // Inline "+ Add Preset" button
             Rectangle {
               id: addPresetBtn
-              width: Style.space(86)
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              width: addPresetText.implicitWidth + Style.space(16)
               height: Style.space(22)
               radius: root.getRounding(4)
               color: addPresetArea.containsMouse ? Util.alpha(Color.accent, 0.25) : Util.alpha(Color.accent, 0.12)
               border.width: 1
               border.color: Util.alpha(Color.accent, 0.30)
-              anchors.verticalCenter: parent.verticalCenter
 
-              Row {
+              Text {
+                id: addPresetText
                 anchors.centerIn: parent
-                spacing: Style.space(4)
-                Text {
-                  text: root.showAddPresetForm ? "✕ Cancel" : "+ Add Preset"
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  color: Color.accent
-                }
+                text: root.showAddPresetForm ? "✕ Cancel" : "+ Add Preset"
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: Color.accent
               }
 
               MouseArea {
