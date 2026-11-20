@@ -187,7 +187,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(430))
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight + Style.space(16), Style.space(640))
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, Style.space(700))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -199,11 +199,10 @@ Panel {
         id: scrollArea
         anchors.fill: parent
         contentWidth: width
-        contentHeight: mainColumn.implicitHeight + Style.space(16)
+        contentHeight: mainColumn.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
         WheelHandler {
           target: null
